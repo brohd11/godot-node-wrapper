@@ -229,19 +229,18 @@ func build_candidate(source_path: String, target_path: String, classes_path: Str
 		"sweets_path": statics_path, "validation": validation}
 
 
-## Unnamed builds reach their owner type through a preload alias instead of a global class.
+## Only a named owner uses its global class; everything else preloads it, so first generation
+## compiles before the editor has registered the class.
 func _apply_name(source: String, path: String, target_path: String, class_name_: String) -> String:
-	if class_name_ == profile.owner_name:
-		return source
-	if not class_name_.is_empty():
-		return _rename_identifier(source, profile.owner_name, class_name_)
+	if path == target_path and not class_name_.is_empty():
+		return source if class_name_ == profile.owner_name else _rename_identifier(source, profile.owner_name, class_name_)
 	var unnamed = source.trim_prefix("class_name %s\n" % profile.owner_name)
-	var renamed = _rename_identifier(unnamed, profile.owner_name, profile.unnamed_alias)
+	var renamed = _rename_identifier(unnamed, profile.owner_name, profile.owner_alias)
 	if renamed == unnamed:
 		return renamed
 	var extends_line = RegEx.create_from_string("(?m)^extends [^\n]*\n").search(renamed)
 	var at = extends_line.get_end() if extends_line != null else 0
-	return renamed.insert(at, "const %s = preload(%s)\n" % [profile.unnamed_alias, var_to_str(_relative_path(path, target_path))])
+	return renamed.insert(at, "const %s = preload(%s)\n" % [profile.owner_alias, var_to_str(_relative_path(path, target_path))])
 
 
 static func _relative_path(owner: String, dependency: String) -> String:
@@ -526,10 +525,24 @@ func _emit_setters(native_type: String, wrapper: String, ancestors: Array[String
 				if api_type.is_empty():
 					return _failure("Cannot resolve setter type: %s.%s" % [native_type, member_name])
 				value_type = Parser.Utils.type_path_to_display(Parser.Utils.type_path_from_api_enum(api_type))
+				# Union resource hints ("BaseMaterial3D,ShaderMaterial") would emit an extra parameter.
+				if value_type.contains(","):
+					value_type = _setter_argument_type(native_type, setter)
 			if value_type == "Nil":
 				value_type = "Variant"
 			methods[member_name] = "\tfunc %s(value: %s) -> %s:\n\t\t%s.%s = value\n\t\treturn self\n" % [member_name, value_type, wrapper, member, member_name]
 	return {"error": OK, "methods": methods}
+
+
+## The declared type of a native setter's value, e.g. Material for set_material_override().
+static func _setter_argument_type(native_type: String, setter: String) -> String:
+	for method in ClassDB.class_get_method_list(native_type):
+		if method.name == setter and method.args.size() - method.default_args.size() == 1:
+			var argument: Dictionary = method.args[0]
+			if not str(argument.class_name).is_empty():
+				return str(argument.class_name)
+			return "Variant" if argument.type == TYPE_NIL else type_string(argument.type)
+	return "Variant"
 
 
 func _check_target(script: GDScript) -> Dictionary:

@@ -27,6 +27,11 @@ class SwNode3D extends SwNode:
 	pass
 
 
+class SwMeshInstance3D extends SwNode3D:
+	#! set material_override
+	pass
+
+
 class SwTimer extends SwNode:
 	#! set wait_time, timeout
 	pass
@@ -62,11 +67,13 @@ static func run_tests() -> Dictionary:
 	_failures.clear()
 	var workspace = _workspace()
 	_check_bases()
+	# A runtime error aborts a chain midway; only a completed chain returns true.
 	for re_export in [false, true]:
-		_check_mixed(workspace, re_export)
-	_check_data_init(workspace)
+		_check("mixed chain completes" + (" (re-export)" if re_export else ""), _check_mixed(workspace, re_export) == true)
+	_check("data chain completes", _check_data_init(workspace) == true)
 	_check_rejections(workspace)
 	_check_written(workspace)
+	_check("named chain completes", _check_named_first_load(workspace) == true)
 	_remove_workspace(workspace)
 	var output: Array = ["Node Wrapper: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
@@ -87,7 +94,7 @@ static func _check_bases() -> void:
 	_check("an Object base still serves Node and RefCounted", generator._base_for("Node") == "Node" and generator._base_for("Resource") == "Resource")
 
 
-static func _check_mixed(workspace: String, re_export: bool) -> void:
+static func _check_mixed(workspace: String, re_export: bool) -> bool:
 	var label = " (re-export)" if re_export else ""
 	var generator = Generator.new(DefaultBases.profile())
 	var source = _write(workspace.path_join("mixed.gd"), MIXED_SOURCE % str(re_export))
@@ -95,7 +102,7 @@ static func _check_mixed(workspace: String, re_export: bool) -> void:
 	_check("mixed bases compile" + label, result.error == OK)
 	if result.error != OK:
 		_failures.append("  " + result.get("message", ""))
-		return
+		return false
 	var root = Node3D.new()
 	var owner = result.validation.new(root)
 	var spatial = owner.node_3d().position(Vector3(1, 2, 3)).visible(false).name("Spatial")
@@ -104,6 +111,9 @@ static func _check_mixed(workspace: String, re_export: bool) -> void:
 	var adopted_node = Node3D.new()
 	var other_parent = Node.new()
 	_check("Node3D from wraps a supplied node and parent" + label, owner.node_3d_from(adopted_node, other_parent).obj() == adopted_node and adopted_node.get_parent() == other_parent)
+	var material = StandardMaterial3D.new()
+	_check("union-hinted setter takes one value" + label, owner.mesh_instance_3d().material_override(material).obj().material_override == material)
+	_check("union-hinted setter is typed by its setter" + label, result.classes_source.contains("func material_override(value: Material) ->"))
 	var events: Array = []
 	var timer = owner.timer().wait_time(2.5).timeout(func(): events.append(true))
 	timer.obj().timeout.emit()
@@ -130,7 +140,10 @@ static func _check_mixed(workspace: String, re_export: bool) -> void:
 
 
 ## The base template, not the generator, decides what construction does.
-static func _check_data_init(workspace: String) -> void:
+	return true
+
+
+static func _check_data_init(workspace: String) -> bool:
 	var profile = DefaultBases.profile()
 	var base: Dictionary = profile.bases["RefCounted"].duplicate()
 	base["class"] = base["class"].replace("\t\t_object = object\n", "\t\t_object = object\n\t\t_object.set_data({\"wrapped\": true})\n")
@@ -141,7 +154,7 @@ static func _check_data_init(workspace: String) -> void:
 	_check("custom RefCounted target compiles", result.error == OK)
 	if result.error != OK:
 		_failures.append("  " + result.get("message", ""))
-		return
+		return false
 	var owner = result.validation.new()
 	var wrapped = owner.data().value(5)
 	_check("base template _init runs set_data", wrapped.obj().data == {"wrapped": true})
@@ -150,6 +163,7 @@ static func _check_data_init(workspace: String) -> void:
 	owner = null
 	wrapped = null
 	_check("custom validation types release", generator.clear_validation(result.validation) == OK)
+	return true
 
 
 static func _check_rejections(workspace: String) -> void:
@@ -160,7 +174,7 @@ static func _check_rejections(workspace: String) -> void:
 		"type outside the profile's bases": ["class SwNode3D extends RefCounted:\n\tvar _object\n", control_only],
 		"unknown native": ["class SwMissing extends RefCounted:\n\tvar _object\n", DefaultBases.profile()],
 		"prototype redefining a template accessor": ["class SwNode extends RefCounted:\n\tvar _object\n\n\tfunc obj():\n\t\treturn _object\n", DefaultBases.profile()],
-		"prototype redefining a RefCounted-only template func": ["class SwStyleBoxFlat extends RefCounted:\n\tvar _object\n\n\tfunc with_owner():\n\t\treturn self\n", DefaultBases.profile()],
+		"prototype redefining a RefCounted-only template func": ["class SwStyleBoxFlat extends RefCounted:\n\tvar _object\n\n\tfunc _with_owner():\n\t\treturn self\n", DefaultBases.profile()],
 		"setter shadowing a template func": ["class SwNode extends RefCounted:\n\t#! set owner\n\tvar _object\n", DefaultBases.profile()],
 		"state other than the profile member": ["class SwNode extends RefCounted:\n\tvar _control\n", DefaultBases.profile()],
 	}
@@ -187,6 +201,29 @@ static func _check_written(workspace: String) -> void:
 	result = generator.generate_file(target, source, classes, statics, "", "")
 	_check("unchanged regeneration writes nothing", result.error == OK and not result.changed)
 	_check("no staging files remain", DirAccess.get_files_at(workspace.path_join("out")).size() == 3)
+
+
+## The name is never registered, so loading proves only the owner relies on its global class.
+static func _check_named_first_load(workspace: String) -> bool:
+	var generator = Generator.new(DefaultBases.profile())
+	var source = _write(workspace.path_join("named.gd"), MIXED_SOURCE % "false")
+	var target = workspace.path_join("named/owner.gd")
+	var classes = workspace.path_join("named/gen/wrappers_generated.gd")
+	var statics = workspace.path_join("named/wrappers.gd")
+	var result = generator.generate_file(target, source, classes, statics, "", "UnregisteredWrap")
+	_check("named build writes outputs", result.error == OK)
+	var bare_name = RegEx.create_from_string("\\bUnregisteredWrap\\b")
+	_check("only the owner names its class", FileAccess.get_file_as_string(target).begins_with("class_name UnregisteredWrap\n") and [classes, statics].all(func(path): return bare_name.search(FileAccess.get_file_as_string(path)) == null))
+	_check("wrappers preload the owner", FileAccess.get_file_as_string(classes).contains("const _WrapperOwner = preload(\"../owner.gd\")"))
+	var owner_script: GDScript = ResourceLoader.load(target, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_check("named owner loads before registration", owner_script != null and owner_script.can_instantiate())
+	if owner_script == null or not owner_script.can_instantiate():
+		return false
+	var root = Node3D.new()
+	var spatial = owner_script.new(root).node_3d().position(Vector3.ONE).obj()
+	_check("named owner chains on first load", spatial.get_parent() == root and spatial.position == Vector3.ONE)
+	root.free()
+	return true
 
 
 static func _build(generator: Generator, workspace: String, source: String) -> Dictionary:

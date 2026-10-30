@@ -41,7 +41,7 @@ const NODE_CLASS = \
 	func _init(object: {type}) -> void:
 		_object = object
 
-	static func with_parent(object: {type}, parent: Node, owner_: WrapperOwner) -> {wrapper}:
+	static func _with_parent(object: {type}, parent: Node, owner_: WrapperOwner) -> {wrapper}:
 		var wrapper = {wrapper}.new(object)
 		parent.add_child(object)
 		wrapper._owner = owner_
@@ -52,13 +52,13 @@ const NODE_FACTORY = \
 "func {factory}(parent: Node = null) -> {wrapper_type}:
 	if not is_instance_valid(parent):
 		parent = _node
-	return {wrapper_type}.with_parent({type}.new(), parent, self)
+	return {wrapper_type}._with_parent({type}.new(), parent, self)
 
 
 func {factory}_from(object: {type}, parent: Node = null) -> {wrapper_type}:
 	if not is_instance_valid(parent):
 		parent = _node
-	return {wrapper_type}.with_parent(object, parent, self)
+	return {wrapper_type}._with_parent(object, parent, self)
 "
 
 const REF_CLASS = \
@@ -75,7 +75,7 @@ const REF_CLASS = \
 	func _init(object: {type}) -> void:
 		_object = object
 
-	static func with_owner(object: {type}, owner_: WrapperOwner) -> {wrapper}:
+	static func _with_owner(object: {type}, owner_: WrapperOwner) -> {wrapper}:
 		var wrapper = {wrapper}.new(object)
 		wrapper._owner = owner_
 		return wrapper
@@ -83,11 +83,11 @@ const REF_CLASS = \
 
 const REF_FACTORY = \
 "func {factory}() -> {wrapper_type}:
-	return {wrapper_type}.with_owner({type}.new(), self)
+	return {wrapper_type}._with_owner({type}.new(), self)
 
 
 func {factory}_from(object: {type}) -> {wrapper_type}:
-	return {wrapper_type}.with_owner(object, self)
+	return {wrapper_type}._with_owner(object, self)
 "
 
 const STATIC_FACTORY = \

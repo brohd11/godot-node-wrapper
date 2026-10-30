@@ -27,6 +27,8 @@ generator.report(generator.setup(true))  # regenerate from source changes
 Each target directory gets `profile.source_file` (seeded from `seed_template` when missing) plus three
 generated files: the owner (`owner_file`), the wrapper classes (`classes_file`) and static factories
 (`statics_file`). A target with an empty class name generates an unnamed build, which you use by preloading it.
+Only a named owner uses its global class. The other files reach it through
+`const <owner_alias> = preload(...)`, so a first generation compiles before the editor registers the class.
 
 ## Prototypes
 
@@ -46,7 +48,8 @@ may declare is `profile.member`.
 ```
 
 - `class`: the wrapper's head, meaning its fields, accessors, `_init`, and attach helpers. Prototypes can't
-  redefine any func declared here.
+  redefine any func declared here. Prefix internal helpers with `_` (the defaults use `_with_parent` /
+  `_with_owner`) to keep them out of completions.
 - `factory`: funcs appended to the owner. `static`: funcs appended to the statics file. Leave either
   empty to emit none.
 - Keys: `{wrapper}`, `{type}`, `{wrapper_type}`, `{factory}`. `profile.owner_name` stays literal and
