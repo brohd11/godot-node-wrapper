@@ -1,0 +1,48 @@
+export_root: "res://addons/_lib/node_wrapper/_export_ignore/exports"
+plugin_folder: "NodeWrapper{{version=res://addons/_lib/node_wrapper}}"
+pre_script: ""
+post_script: ""
+options:
+  overwrite: true
+  include_uid: true
+  include_import: true
+  ignore_src: false
+  use_tag_in_cfg: true
+  include_min_version: true
+  move_global_files: false
+  include_docs: true
+  include_project_license: false
+  parser_settings:
+    use_relative_paths: false
+    backport_target: 100
+    parse_cs:
+      namespace_rename: {}
+    parse_gd:
+      replace_editor_interface: false
+      optimizer:
+        struct_mode: tagged
+        inline_mode: tagged
+        aggressive: false
+        debug_tags: false
+        enabled: false
+      class_rename_ignore: []
+      backport_string_renames: {}
+    parse_tscn: {}
+    parse_tres: {}
+exports:
+  -
+    source: "res://addons/_lib/node_wrapper"
+    export_name: "node-wrapper{{version=res://addons/_lib/node_wrapper}}"
+    export_folder: addons/_lib/node_wrapper
+    exclude:
+      directories:
+        - "res://addons/_lib/node_wrapper/_export_ignore"
+      file_extensions: []
+      files: []
+    other_transfers: []
+    parser_overide_settings:
+      parse_cs: {}
+      parse_gd: {}
+      parse_tscn: {}
+      parse_tres: {}
+    remote_dir: "res://addons/_lib/node_wrapper/src/remote"
