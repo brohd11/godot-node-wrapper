@@ -1,0 +1,38 @@
+extends RefCounted
+
+const RE_EXPORT = false
+const TYPES = {}
+
+
+class SwNode extends RefCounted:
+	#! set name, process_mode
+	var _object
+
+
+class SwNode3D extends SwNode:
+	#! set position, rotation, scale, visible
+	pass
+
+
+class SwMeshInstance3D extends SwNode3D:
+	#! set mesh, material_override, cast_shadow
+	pass
+
+
+# RefCounted types use the RefCounted base: owner factories wrap without a parent.
+class SwRefCounted extends RefCounted:
+	var _object
+
+
+class SwResource extends SwRefCounted:
+	#! set resource_name, resource_local_to_scene
+	pass
+
+
+class SwStandardMaterial3D extends SwResource:
+	#! set albedo_color, albedo_texture, transparency, shading_mode
+
+	func pbr(metallic: float, roughness: float) -> SwStandardMaterial3D:
+		_object.metallic = metallic
+		_object.roughness = roughness
+		return self

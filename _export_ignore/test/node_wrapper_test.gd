@@ -7,6 +7,7 @@ const Generator = preload("res://addons/_lib/node_wrapper/src/generator.gd")
 const Profile = preload("res://addons/_lib/node_wrapper/src/profile.gd")
 const DefaultBases = preload("res://addons/_lib/node_wrapper/src/default_bases.gd")
 const DATA_FIXTURE = "res://addons/_lib/node_wrapper/_export_ignore/test/fixtures/data_fixture.gd"
+const Example = preload("res://addons/_lib/node_wrapper/_export_ignore/example/node_wrap_generator.gd")
 
 const MIXED_SOURCE = """extends RefCounted
 
@@ -74,6 +75,7 @@ static func run_tests() -> Dictionary:
 	_check_rejections(workspace)
 	_check_written(workspace)
 	_check("named chain completes", _check_named_first_load(workspace) == true)
+	_check("example chain completes", _check_example(workspace) == true)
 	_remove_workspace(workspace)
 	var output: Array = ["Node Wrapper: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
@@ -223,6 +225,26 @@ static func _check_named_first_load(workspace: String) -> bool:
 	var spatial = owner_script.new(root).node_3d().position(Vector3.ONE).obj()
 	_check("named owner chains on first load", spatial.get_parent() == root and spatial.position == Vector3.ONE)
 	root.free()
+	return true
+
+
+## Keeps the README's example honest: its profile builds its seed, and the documented chain works.
+static func _check_example(workspace: String) -> bool:
+	var generator = Example.generator()
+	var source = _write(workspace.path_join("example.gd"), generator.profile.seed_template)
+	var result = _build(generator, workspace, source)
+	_check("example seed builds", result.error == OK)
+	if result.error != OK:
+		_failures.append("  " + result.get("message", ""))
+		return false
+	var root = Node3D.new()
+	var wrap = result.validation.new(root)
+	var mat = wrap.standard_material_3d().albedo_color(Color.RED).pbr(1.0, 0.25).obj()
+	var box = wrap.mesh_instance_3d().mesh(BoxMesh.new()).material_override(mat).obj()
+	_check("example chain applies", box.get_parent() == root and box.material_override == mat and mat.albedo_color == Color.RED and mat.metallic == 1.0 and mat.roughness == 0.25)
+	root.free()
+	wrap = null
+	_check("example validation types release", generator.clear_validation(result.validation) == OK)
 	return true
 
 

@@ -8,59 +8,31 @@ Godot 4.6+
 
 ## Usage
 
+See the [example](_export_ignore/example/): a profile script plus a seed source that generates a `NodeWrap` class
+for Node → Node3D → MeshInstance3D and RefCounted → Resource → StandardMaterial3D:
+
 ```gdscript
-const Generator = preload("res://addons/_lib/node_wrapper/src/generator.gd")
-const DefaultBases = preload("res://addons/_lib/node_wrapper/src/default_bases.gd")
-
-var profile = DefaultBases.profile()
-profile.label = "My Wrappers"
-profile.targets_setting = "my_plugin/generation/targets"
-profile.default_targets = {"res://scripts/my_wrappers": "MyWrappers"}
-profile.addon_dir = "res://addons/my_plugin"
-profile.seed_template = FileAccess.get_file_as_string("res://addons/my_plugin/templates/source.gd.txt")
-
-var generator = Generator.new(profile)
-generator.report(generator.setup())      # create missing outputs
-generator.report(generator.setup(true))  # regenerate from source changes
+var mat = wrap.standard_material_3d().albedo_color(Color.RED).pbr(1.0, 0.25).obj()
+wrap.mesh_instance_3d().mesh(BoxMesh.new()).material_override(mat)
 ```
 
-Each target directory gets `profile.source_file` (seeded from `seed_template` when missing) plus three
-generated files: the owner (`owner_file`), the wrapper classes (`classes_file`) and static factories
-(`statics_file`). A target with an empty class name generates an unnamed build, which you use by preloading it.
-Only a named owner uses its global class. The other files reach it through
-`const <owner_alias> = preload(...)`, so a first generation compiles before the editor registers the class.
+A `Profile` (`src/profile.gd`) holds the naming, output layout and templates. `Generator.new(profile).setup()`
+seeds the source file if it's missing and generates the owner, the wrapper classes and the static factories.
+Only the owner uses its global class. The other generated files preload it, so a first generation
+compiles before the editor registers the class.
 
 ## Prototypes
 
-Top-level classes named `profile.prefix` + type (`SwNode3D` → `Node3D`, factory `node_3d()`) are
-prototypes. Inherited methods are flattened into each generated wrapper. The `TYPES` dictionary can
-override `node` (a native name or a file-backed script) and `factory`, and `RE_EXPORT` re-exports the
-wrapper names on the owner.
-`#! set a, b` generates setters for properties and connectors for signals. The only state a prototype
-may declare is `profile.member`.
+Top-level classes named `prefix` + type (`SwNode3D` → `Node3D`, factory `node_3d()`) are prototypes, and
+inherited methods are flattened into each wrapper. `#! set a, b` generates property setters and signal
+connectors. `TYPES` can override `node` (a native class or a file-backed script) and `factory`.
 
 ## Bases
 
-`profile.bases` maps a native class name to the templates that define each wrapper's base functionality:
-
-```gdscript
-{"Node": {"class": NODE_CLASS, "factory": NODE_FACTORY, "static": STATIC_FACTORY}}
-```
-
-- `class`: the wrapper's head, meaning its fields, accessors, `_init`, and attach helpers. Prototypes can't
-  redefine any func declared here. Prefix internal helpers with `_` (the defaults use `_with_parent` /
-  `_with_owner`) to keep them out of completions.
-- `factory`: funcs appended to the owner. `static`: funcs appended to the statics file. Leave either
-  empty to emit none.
-- Keys: `{wrapper}`, `{type}`, `{wrapper_type}`, `{factory}`. `profile.owner_name` stays literal and
-  is renamed per target.
-
-A type uses the most derived base it inherits from. Types must inherit `Node` or `RefCounted` (Resource
-included). Bare `Object` is rejected because nothing would free it. Abstract natives (e.g. CanvasItem) still get a
-wrapper class, so they can be inherited, but no factories.
-
-`DefaultBases` has reference templates: `Node` attaches to a parent, while `RefCounted` wraps without one.
-Copy them and change the base to change what construction does, e.g. an `_init` that calls `set_data()`.
+`profile.bases` maps a native class to `{"class", "factory", "static"}` templates, which define each
+wrapper's own base functionality. They use the keys `{wrapper}`, `{type}`, `{wrapper_type}` and `{factory}`. A type
+uses the most derived base it inherits from, and it must inherit `Node` or `RefCounted`. Abstract natives get
+a wrapper class but no factories. [`DefaultBases`](src/default_bases.gd) is a good starting point.
 
 ## Tests
 
