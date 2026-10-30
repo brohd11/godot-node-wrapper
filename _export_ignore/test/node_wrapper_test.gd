@@ -218,8 +218,10 @@ static func _check_named_first_load(workspace: String) -> bool:
 	_check("only the owner names its class", FileAccess.get_file_as_string(target).begins_with("class_name UnregisteredWrap\n") and [classes, statics].all(func(path): return bare_name.search(FileAccess.get_file_as_string(path)) == null))
 	_check("wrappers preload the owner", FileAccess.get_file_as_string(classes).contains("const _WrapperOwner = preload(\"../owner.gd\")"))
 	var owner_script: GDScript = ResourceLoader.load(target, "", ResourceLoader.CACHE_MODE_IGNORE)
-	_check("named owner loads before registration", owner_script != null and owner_script.can_instantiate())
-	if owner_script == null or not owner_script.can_instantiate():
+	# Not can_instantiate(): generated scripts aren't @tool, so it's false in the editor (Test CI).
+	var loaded = owner_script != null and owner_script.reload(true) == OK
+	_check("named owner loads before registration", loaded)
+	if not loaded:
 		return false
 	var root = Node3D.new()
 	var spatial = owner_script.new(root).node_3d().position(Vector3.ONE).obj()
