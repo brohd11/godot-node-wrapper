@@ -34,15 +34,3 @@ exports:
     source: "res://addons/_lib/node_wrapper"
     export_name: "node-wrapper{{version=res://addons/_lib/node_wrapper}}"
     export_folder: addons/_lib/node_wrapper
-    exclude:
-      directories:
-        - "res://addons/_lib/node_wrapper/_export_ignore"
-      file_extensions: []
-      files: []
-    other_transfers: []
-    parser_overide_settings:
-      parse_cs: {}
-      parse_gd: {}
-      parse_tscn: {}
-      parse_tres: {}
-    remote_dir: "res://addons/_lib/node_wrapper/src/remote"
